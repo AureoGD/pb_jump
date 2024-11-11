@@ -1,0 +1,6 @@
+__pycache__
+.vscode
+logs
+models
+jump_rgc/build
+test.py
