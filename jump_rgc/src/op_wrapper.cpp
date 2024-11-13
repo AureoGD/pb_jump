@@ -4,6 +4,8 @@ Op_Wrapper::Op_Wrapper()
 {
     // std::cout << &(this->q) << std::endl;
 
+    this->solver.settings()->setVerbosity(false);
+
     this->_JumpRobot = new JumpRobot();
 
     this->optP1 = new OptProblem1(_JumpRobot);
@@ -165,14 +167,13 @@ void Op_Wrapper::UpdateSt(Eigen::Matrix<double, 2, 1> *_q,
 
 int Op_Wrapper::ChooseRGCPO(int npo)
 {
-    // std::cout << npo << std::endl;
-    // verify if the PO is the same that the used before
-    if (npo != this->last_op || error_flag)
+    if (npo != this->last_op)
     {
-        if (this->solver.isInitialized() || error_flag)
-        {
+        // if (this->solver.isInitialized() || error_flag)
+        if(this->solver.isInitialized())
             this->ClearPO();
-        }
+        if(this->solver.data()->isSet())
+            this->ClearData();
         this->ConfPO(npo);
         this->last_op = npo;
         error_flag = false;
@@ -180,6 +181,7 @@ int Op_Wrapper::ChooseRGCPO(int npo)
 
     if (this->solver.isInitialized())
     {
+        
         if (npo == 0 || npo == 1 || npo == 4 || npo == 5)
         {
             // update the states vector |dr, q, r, g, qa|
@@ -194,36 +196,53 @@ int Op_Wrapper::ChooseRGCPO(int npo)
 
         this->qhl = this->op[npo]->qhl;
         this->op[npo]->UpdateStates(this->x);
-
         this->op[npo]->UpdateOptimizationProblem(this->H, this->F, this->Ain, this->Lb, this->Ub);
-
-        if (this->SolvePO())
+        
+        int solve_status = this->SolvePO();
+        if (solve_status == 1)
         {
             if (this->debug)
                 std::cout << "solved" << std::endl;
             return 1;
         }
-        else
+        else if (solve_status == 0)
         {
             if (this->debug)
                 std::cout << "not solved" << std::endl;
             return 0;
         }
+        else 
+        {
+            return -1;
+        }
     }
     else
     {
-        error_flag = true;
         if (this->debug)
             std::cout << "RGC conf error" << std::endl;
         return -1;
     }
 }
 
+void Op_Wrapper::ResetPO()
+{
+    if(this->solver.isInitialized())
+        this->ClearPO();
+    if(this->solver.data()->isSet())
+        this->ClearData();
+    this->last_op = -1;
+}
+
 void Op_Wrapper::ClearPO()
 {
-    this->solver.data()->clearLinearConstraintsMatrix();
-    this->solver.data()->clearHessianMatrix();
+    this->solver.clearSolverVariables();
     this->solver.clearSolver();
+}
+
+void Op_Wrapper::ClearData()
+{
+    this->solver.data()->clearLinearConstraintsMatrix();
+    this->solver.data()->clearHessianMatrix(); 
 }
 
 void Op_Wrapper::ConfPO(int index)
@@ -280,20 +299,18 @@ void Op_Wrapper::ConfPO(int index)
     {
         if (!this->solver.initSolver())
         {
-            std::cout << index << std::endl;
-            // exit(0);
+            std::cout <<"Error: "<< index << std::endl;
         }
     }
 }
 
-bool Op_Wrapper::SolvePO()
+int Op_Wrapper::SolvePO()
 {
-
+    
     this->hessian_sparse = this->H.sparseView();
+    if (!this->solver.updateHessianMatrix(this->hessian_sparse))
+        return -1;
 
-    // std::cout << this->H << std::endl;
-
-    this->solver.updateHessianMatrix(this->hessian_sparse);
     this->solver.updateGradient(this->F.transpose());
 
     if (this->constraints != 0)
@@ -303,6 +320,7 @@ bool Op_Wrapper::SolvePO()
         this->solver.updateBounds(this->Lb, this->Ub);
     }
 
+    
     if (this->solver.solveProblem() == OsqpEigen::ErrorExitFlag::NoError)
     {
         if (this->solver.getStatus() != OsqpEigen::Status::Solved)

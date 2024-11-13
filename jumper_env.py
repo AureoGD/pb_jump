@@ -3,16 +3,18 @@ from gymnasium import spaces
 import pybullet as p
 import pybullet_data
 import numpy as np
-import jump_model
 from icecream import ic
 import time
+
+import jump_model_2 as jump_model
+# import jump_model
 
 
 class JumperEnv(gym.Env):
     def __init__(self, render=False, show_training=True):
         super(JumperEnv, self).__init__()
 
-        self.robot_mdl = jump_model.JumpModel()
+        self.robot_mdl = jump_model.JumpModel(10, 1)
         self._last_frame_time = 0.0
         self._time_step = 0.001
         self._is_render = show_training or render
@@ -97,10 +99,11 @@ class JumperEnv(gym.Env):
         info = {}
 
         self.current_step += 1
-        return obs, reward, terminated, truncated, info
+        return np.array(obs), reward, terminated, truncated, info
 
     def reset(self, seed=None):
         super().reset(seed=seed)
+        q = self.robot_mdl.randon_joint_pos()
         self.robot_mdl.reset_vars()
         p.resetSimulation()
         p.setGravity(0, 0, -9.8)
@@ -109,11 +112,12 @@ class JumperEnv(gym.Env):
         self._load_plane()
 
         self.model, self.num_joints = self._load_robot()
-        q = self.robot_mdl.randon_joint_pos()
 
         self._initialize_joint_states(q)
 
-        p.stepSimulation()
+        time.sleep(0.01)
+
+        # p.stepSimulation()
 
         info = {"ep": self.ep, "Episod reward: ": self.robot_mdl.episode_reward}
         self.ep += 1
@@ -124,7 +128,6 @@ class JumperEnv(gym.Env):
         self.robot_mdl.update_states(self.q_aux, self.dq_aux, self.f_cont)
 
         obs = self.robot_mdl.observation()
-
         self._last_frame_time = 0
         return obs, info
 
@@ -134,5 +137,5 @@ class JumperEnv(gym.Env):
                 self.model, self.robot_mdl.JOINT_ST_LIST[idx]
             )
         q, dq, forces, tau = p.getJointState(self.model, self.num_joints - 1)
-        if forces[2] < self.robot_mdl.Fthreshold:
+        if forces[2] < self.robot_mdl.force_threshold:
             self.f_cont = 1

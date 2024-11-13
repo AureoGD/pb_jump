@@ -14,5 +14,5 @@ for episode in range(episodes):
     ic(episode)
     while not done:
         action = env.action_space.sample()
-        obs, reward, done, truncated, info = env.step(0)
-        # ic(done)
+        obs, reward, done, truncated, info = env.step(action)
+        ic(obs)

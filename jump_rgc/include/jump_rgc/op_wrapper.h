@@ -28,13 +28,17 @@ public:
 
     int ChooseRGCPO(int npo);
 
-    bool SolvePO();
+    int SolvePO();
 
     void UpdateSt(Eigen::Matrix<double, 2, 1> *_q,
                   Eigen::Matrix<double, 2, 1> *_qd,
                   Eigen::Matrix<double, 2, 1> *_qr,
                   Eigen::Matrix<double, 2, 1> *_b,
                   Eigen::Matrix<double, 2, 1> *_db);
+
+    void ResetPO();
+
+    void ClearData();
 
     Eigen::VectorXd qhl;
 
